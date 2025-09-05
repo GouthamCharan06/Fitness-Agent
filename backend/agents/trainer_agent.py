@@ -12,16 +12,18 @@ load_dotenv()
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 MUSCLEWIKI_URL = "https://musclewiki.com"
 
+
 logging.basicConfig(level=logging.INFO)
 
+# Updated system prompt: instruct LLM to mention MuscleWiki URL (plain) in every response
 system_prompt = SystemMessagePromptTemplate.from_template(
-    "You are a professional and approachable gym trainer. You can give a training plan too "
+    "You are a professional and approachable gym trainer. You can give a training plan too. "
     "Provide accurate, concise exercise and fitness guidance. "
     "Respond only with information directly related to physical training, workouts, exercises, sets, reps, recovery, and muscle targeting. "
     "Do NOT provide detailed nutritional, calorie, or meal plan information—that is handled by the Nutrition Agent. "
     "If the user asks casual or small-talk questions, reply in a friendly but fitness-oriented way without adding nutrition advice. "
     "Always ensure responses are safe, professional, and free of sensitive details. "
-    f"Reference {MUSCLEWIKI_URL} when giving exercise suggestions. "
+    f"When referencing exercises, always include this URL at the end of your response: {MUSCLEWIKI_URL} "
     "Do not use emojis, markdown, bold formatting, or asterisks. "
     "If the query includes nutrition or diet, only acknowledge it briefly and defer to the Nutrition Agent."
 )
@@ -35,11 +37,12 @@ def sanitize_text(text: str) -> str:
     text = re.sub(r"[*#]", "", text)
     return text
 
-# Utility to append MuscleWiki clickable URL
-def append_musclewiki_clickable(response: str) -> str:
-    if MUSCLEWIKI_URL not in response:
-        response += f'\n\nFor exercise references, visit: <a href="{MUSCLEWIKI_URL}" target="_blank">musclewiki.com</a>'
+def append_musclewiki_url(response: str) -> str:
+    clean_url = MUSCLEWIKI_URL.rstrip(".")  # remove trailing period if any
+    if clean_url not in response:
+        response += f'\n\nFor exercise references, visit: <a href="{clean_url}" target="_blank">musclewiki.com</a>'
     return response
+
 
 async def trainer_node(state: dict, context: dict) -> dict:
     token = context.get("token")
@@ -69,9 +72,11 @@ async def trainer_node(state: dict, context: dict) -> dict:
     messages = chat_prompt.format_messages(user_query=user_query)
     response = await llm.ainvoke(messages)
 
-    # Sanitize and append clickable MuscleWiki URL
+    # Sanitize LLM output
     response_text = sanitize_text(response.content)
-    response_text = append_musclewiki_clickable(response_text)
+    # Append plain MuscleWiki URL safely
+    response_text = append_musclewiki_url(response_text)
+
     state["trainer_response"] = response_text
 
     # Append trainer message to chat history

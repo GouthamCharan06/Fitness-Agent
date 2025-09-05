@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 /* ----------------------------- Chat components ---------------------------- */
-
 function ChatBubble({
   message,
   isUser,
@@ -12,8 +11,27 @@ function ChatBubble({
 }: {
   message: string;
   isUser: boolean;
-  avatar?: React.ReactNode;
+  avatar?: ReactNode;
 }) {
+  // Split message into text and URLs
+  const formattedMessage = isUser
+    ? [message]
+    : message.split(/(https?:\/\/[^\s,!?;:]+)/g).map((part, i) =>
+        /https?:\/\/[^\s,!?;:]+/.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-blue-600"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      );
+
   return (
     <div
       className={`flex mb-3 items-end ${
@@ -29,7 +47,7 @@ function ChatBubble({
         }`}
         style={{ whiteSpace: "pre-wrap" }}
       >
-        {message}
+        {formattedMessage}
       </div>
     </div>
   );
@@ -56,7 +74,6 @@ function AgentThinkingBubble({ avatar }: { avatar?: ReactNode }) {
 }
 
 /* ------------------------------- Modals --------------------------------- */
-
 function ConsentModal({ onAccept }: { onAccept: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -66,29 +83,28 @@ function ConsentModal({ onAccept }: { onAccept: () => void }) {
         </h2>
         <div className="text-gray-700 space-y-3 text-sm leading-relaxed">
           <p>
-            This application uses internal agents (Trainer, Nutrition, Recovery)
-            to generate personalized responses. By continuing, you agree to let
+            This app uses internal agents (Trainer, Nutrition, Recovery) to
+            generate personalized responses. By continuing, you agree to let
             these agents read your input messages so they can collaborate and
             respond.
           </p>
           <p>
-            We are integrated with Fitbit to generate personalized recovery
+            We integrate with Fitbit to generate personalized recovery
             suggestions. If linked, agents may read your Fitbit data (activity,
             sleep, heart rate, profile) strictly for insights. Your data will
             not be modified.
           </p>
           <p className="text-xs text-gray-500">
-            Access is protected with Descope-issued scoped tokens and delegated
-            consent. You can link or unlink Fitbit anytime using the badge in
-            the header (next to Logout).
+            Access is protected with Descope-issued scoped tokens. You can link
+            or unlink Fitbit anytime using the badge in the header.
           </p>
         </div>
-        <div className="mt-5 flex items-center justify-end gap-3">
+        <div className="mt-5 flex items-center justify-end">
           <button
             onClick={onAccept}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
           >
-            I Agree &amp; Continue
+            I Agree & Continue
           </button>
         </div>
       </div>
@@ -111,15 +127,20 @@ function RecoveryModal({
 }) {
   const [sleepHours, setSleepHours] = useState("");
   const [proteinGrams, setProteinGrams] = useState("");
+  const [mode, setMode] = useState<"fitbit" | "manual">(
+    isFitbitLinked ? "fitbit" : "manual"
+  );
 
   useEffect(() => {
     if (!visible) {
       setSleepHours("");
       setProteinGrams("");
+      setMode(isFitbitLinked ? "fitbit" : "manual");
     }
-  }, [visible]);
+  }, [visible, isFitbitLinked]);
 
   if (!visible) return null;
+
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border p-6">
@@ -127,52 +148,56 @@ function RecoveryModal({
         <p className="text-sm text-gray-700 mb-4">
           Choose how you'd like to provide recovery data for this query.
         </p>
-
         <div className="flex gap-3 mb-4">
           <button
-            onClick={() => onUseFitbit()}
+            onClick={() => setMode("fitbit")}
             className={`flex-1 px-4 py-3 rounded-lg border ${
-              isFitbitLinked
+              mode === "fitbit"
                 ? "border-green-500 bg-green-50"
                 : "border-gray-300"
             }`}
           >
-            Use Fitbit {isFitbitLinked ? " (linked)" : " (not linked)"}
+            Use Fitbit {isFitbitLinked ? "(linked)" : "(not linked)"}
           </button>
-
           <button
-            onClick={() => {
-              // intentionally does nothing here — manual inputs are below
-            }}
-            className="px-4 py-3 rounded-lg border border-gray-300"
+            onClick={() => setMode("manual")}
+            className={`flex-1 px-4 py-3 rounded-lg border ${
+              mode === "manual"
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-300"
+            }`}
           >
             Manual entry
           </button>
         </div>
 
-        <div className="mb-3">
-          <label className="block text-sm text-gray-600 mb-1">
-            Sleep hours (optional)
-          </label>
-          <input
-            value={sleepHours}
-            onChange={(e) => setSleepHours(e.target.value)}
-            placeholder="e.g. 7.5"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm text-gray-600 mb-1">
-            Protein (grams) (optional)
-          </label>
-          <input
-            value={proteinGrams}
-            onChange={(e) => setProteinGrams(e.target.value)}
-            placeholder="e.g. 120"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
+        {mode === "manual" && (
+          <>
+            <div className="mb-3">
+              <label className="block text-sm text-gray-600 mb-1">
+                Sleep hours (optional - How many hours are you aiming to sleep?)
+              </label>
+              <input
+                value={sleepHours}
+                onChange={(e) => setSleepHours(e.target.value)}
+                placeholder="e.g. 7.5"
+                className="w-full rounded border px-3 py-2"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-1">
+                Protein (grams) (optional - How many grams can you hit in a
+                day?)
+              </label>
+              <input
+                value={proteinGrams}
+                onChange={(e) => setProteinGrams(e.target.value)}
+                placeholder="e.g. 120"
+                className="w-full rounded border px-3 py-2"
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex items-center justify-end gap-3">
           <button
@@ -181,26 +206,24 @@ function RecoveryModal({
           >
             Cancel
           </button>
-
           <button
             onClick={() => {
-              // If Fitbit linked and nothing entered -> proceed with Fitbit
-              if (isFitbitLinked && sleepHours === "" && proteinGrams === "") {
-                onUseFitbit();
-              } else if (
-                isFitbitLinked &&
-                (sleepHours !== "" || proteinGrams !== "")
-              ) {
-                // Prefer Fitbit but forward manual inputs as well (existing behavior)
-                onUseFitbit();
-              } else {
-                // Manual flow
-                onManual(sleepHours, proteinGrams);
-              }
+              if (mode === "fitbit") onUseFitbit();
+              else onManual(sleepHours, proteinGrams);
             }}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white"
           >
-            Continue
+            Submit
+          </button>
+          <button
+            onClick={() => {
+              onClose();
+              // Execute pending query naturally
+              onUseFitbit();
+            }}
+            className="px-4 py-2 rounded-lg bg-gray-300 text-gray-800"
+          >
+            Skip
           </button>
         </div>
       </div>
@@ -243,57 +266,44 @@ function UnlinkConfirmModal({
 }
 
 /* ------------------------------- Main Page -------------------------------- */
+type ChatMessage = { text: string; user?: boolean };
+type ManualData = { sleepHours?: number; proteinIntake?: number };
 
 export default function ChatPage() {
   const router = useRouter();
-
-  /* ----------------------------- Core state ----------------------------- */
-  const [messages, setMessages] = useState<{ text: string; user?: boolean }[]>(
-    () => {
-      if (typeof window === "undefined") return [];
-      const saved = localStorage.getItem("chat_messages");
-      return saved ? JSON.parse(saved) : [];
-    }
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("chat_messages");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
-  /* -------------------------- Consent & auth state ---------------------- */
   const [showConsent, setShowConsent] = useState(false);
   const [agentConsentGranted, setAgentConsentGranted] = useState<boolean>(
-    () => {
-      if (typeof window === "undefined") return false;
-      return localStorage.getItem("agent_consent_granted") === "true";
-    }
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("agent_consent_granted") === "true"
   );
-
-  /* ------------------------------- Fitbit ------------------------------- */
-  const [fitbitToken, setFitbitToken] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("fitbit_token");
-  });
+  const [fitbitToken, setFitbitToken] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("fitbit_token") : null
+  );
   const [fitbitAuthenticated, setFitbitAuthenticated] = useState<boolean>(
-    () => {
-      if (typeof window === "undefined") return false;
-      return localStorage.getItem("fitbit_authenticated") === "true";
-    }
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("fitbit_authenticated") === "true"
   );
-  const [fitbitWelcomeShown, setFitbitWelcomeShown] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("fitbit_welcome_shown") === "true";
-  });
-
-  /* ---------------------------- Recovery state -------------------------- */
+  const [fitbitWelcomeShown, setFitbitWelcomeShown] = useState<boolean>(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("fitbit_welcome_shown") === "true"
+  );
   const [recoveryModalVisible, setRecoveryModalVisible] = useState(false);
   const [pendingRecoveryMessage, setPendingRecoveryMessage] = useState<
     string | null
   >(null);
-
-  /* ---------------------------- Unlink modal ---------------------------- */
   const [unlinkModalVisible, setUnlinkModalVisible] = useState(false);
-
-  /* --------------------------- UI & refs ------------------------------- */
   const scrollRef = useRef<HTMLDivElement>(null);
+
   const agentAvatar = (
     <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
       A
@@ -303,16 +313,15 @@ export default function ChatPage() {
   const presetMessages = [
     "Hello! What's this application about?",
     "Suggest some back workouts",
-    "Give me a diet plan for muscle gain",
-    "I want to grow my arms. Suggest a training plan",
+    "Give me a diet plan for muscle gain for skinny people",
+    "I want to grow my arms. Suggest a training plan and a diet plan for the same",
     "How is my recovery today?",
     "How should I recover after a leg workout?",
   ];
 
-  /* ------------------------- Persist & effects ------------------------- */
-
   useEffect(() => {
     localStorage.setItem("chat_messages", JSON.stringify(messages));
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
@@ -323,40 +332,28 @@ export default function ChatPage() {
   }, [agentConsentGranted]);
 
   useEffect(() => {
-    // Auto-scroll to bottom when messages or loading change
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
-
-  useEffect(() => {
-    // redirect if session absent
-    if (typeof window !== "undefined" && !localStorage.getItem("descope_jwt")) {
+    if (typeof window !== "undefined" && !localStorage.getItem("descope_jwt"))
       router.replace("/");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   useEffect(() => {
     if (!agentConsentGranted) setShowConsent(true);
   }, [agentConsentGranted]);
 
-  /* ------------------------ Fitbit OAuth callback ---------------------- */
+  /* ---------------------------- Fitbit OAuth --------------------------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
     const storedState = localStorage.getItem("fitbit_oauth_state");
-
     if (!code) return;
     if (storedState && state && state !== storedState) {
-      console.warn("Fitbit OAuth state mismatch; ignoring callback.");
       window.history.replaceState({}, "", window.location.pathname);
       return;
     }
-
     const codeVerifier = localStorage.getItem("fitbit_code_verifier");
     if (!codeVerifier) {
-      console.warn("No PKCE code_verifier found; ignoring callback.");
       window.history.replaceState({}, "", window.location.pathname);
       return;
     }
@@ -368,7 +365,6 @@ export default function ChatPage() {
           { text: "Fetching your Fitbit data...", user: false },
         ]);
         const redirectUri = `${window.location.origin}/api/auth/verify/fitbit/callback`;
-
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/verify/fitbit/callback`,
           {
@@ -382,21 +378,20 @@ export default function ChatPage() {
             }),
           }
         );
-
         const data = await res.json();
-
         if (res.ok && data.tokens?.access_token) {
           localStorage.setItem("fitbit_token", data.tokens.access_token);
           localStorage.setItem("fitbit_tokens", JSON.stringify(data.tokens));
           localStorage.setItem("fitbit_authenticated", "true");
           setFitbitToken(data.tokens.access_token);
           setFitbitAuthenticated(true);
+          console.log("Fitbit data fetched:", data); // log to console
 
           if (!fitbitWelcomeShown) {
             setMessages((m) => [
               ...m,
               {
-                text: "This application is now integrated with your Fitbit account. You can now ask recovery-based queries regarding the same.",
+                text: "Fitbit integrated. You can ask queries related to Fitbit or enter manually.",
                 user: false,
               },
             ]);
@@ -404,33 +399,13 @@ export default function ChatPage() {
             setFitbitWelcomeShown(true);
           }
 
-          // try init call (best-effort)
-          try {
-            const jwt = localStorage.getItem("descope_jwt");
-            if (jwt) {
-              await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/agent/recovery/init`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwt}`,
-                  },
-                  body: JSON.stringify({
-                    fitbit_token: data.tokens.access_token,
-                    note: "initial_validation_from_frontend",
-                  }),
-                }
-              );
-            }
-          } catch (e) {
-            console.warn("Recovery init call failed:", e);
+          if (pendingRecoveryMessage) {
+            setRecoveryModalVisible(false);
+            handleSend(pendingRecoveryMessage);
+            setPendingRecoveryMessage(null);
           }
-        } else {
-          throw new Error("Token exchange failed");
-        }
-      } catch (err) {
-        console.error("Error fetching Fitbit token:", err);
+        } else throw new Error("Token exchange failed");
+      } catch {
         setFitbitAuthenticated(false);
         setMessages((m) => [
           ...m,
@@ -446,53 +421,36 @@ export default function ChatPage() {
         window.history.replaceState({}, "", window.location.pathname);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /* ---------------------------- PKCE helpers --------------------------- */
-
-  function base64UrlEncode(array: Uint8Array) {
-    let str = "";
-    for (const byte of array) str += String.fromCharCode(byte);
-    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  }
-
-  function generateCodeVerifier(): string {
-    const array = new Uint8Array(64);
-    crypto.getRandomValues(array);
-    return base64UrlEncode(array);
-  }
-
-  async function generateCodeChallenge(verifier: string): Promise<string> {
-    const data = new TextEncoder().encode(verifier);
-    const hash = await crypto.subtle.digest("SHA-256", data);
-    return base64UrlEncode(new Uint8Array(hash));
-  }
 
   async function startFitbitOAuth() {
     try {
       const clientId = process.env.NEXT_PUBLIC_FITBIT_CLIENT_ID!;
       const redirectUri = `${window.location.origin}/api/auth/verify/fitbit/callback`;
       const scope = "activity heartrate sleep profile";
-
-      const codeVerifier = generateCodeVerifier();
+      const array = new Uint8Array(64);
+      crypto.getRandomValues(array);
+      const codeVerifier = btoa(String.fromCharCode(...array))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
       localStorage.setItem("fitbit_code_verifier", codeVerifier);
-      const codeChallenge = await generateCodeChallenge(codeVerifier);
+      const hash = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(codeVerifier)
+      );
+      const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
       const state = crypto.randomUUID();
       localStorage.setItem("fitbit_oauth_state", state);
-
-      const authUrl =
-        `https://www.fitbit.com/oauth2/authorize?response_type=code` +
-        `&client_id=${clientId}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&scope=${encodeURIComponent(scope)}` +
-        `&code_challenge=${codeChallenge}` +
-        `&code_challenge_method=S256` +
-        `&state=${state}`;
-
-      window.location.href = authUrl;
-    } catch (e) {
-      console.error("Failed to start Fitbit OAuth", e);
+      window.location.href = `https://www.fitbit.com/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&scope=${encodeURIComponent(
+        scope
+      )}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`;
+    } catch {
       setMessages((m) => [
         ...m,
         {
@@ -503,17 +461,17 @@ export default function ChatPage() {
     }
   }
 
-  /* ---------------------------- Auth helpers --------------------------- */
-
   function handleLogout() {
-    localStorage.removeItem("descope_jwt");
-    localStorage.removeItem("agent_consent_granted");
-    localStorage.removeItem("fitbit_token");
-    localStorage.removeItem("fitbit_tokens");
-    localStorage.removeItem("fitbit_authenticated");
-    localStorage.removeItem("fitbit_oauth_state");
-    localStorage.removeItem("fitbit_code_verifier");
-    localStorage.removeItem("fitbit_welcome_shown");
+    [
+      "descope_jwt",
+      "agent_consent_granted",
+      "fitbit_token",
+      "fitbit_tokens",
+      "fitbit_authenticated",
+      "fitbit_oauth_state",
+      "fitbit_code_verifier",
+      "fitbit_welcome_shown",
+    ].forEach((k) => localStorage.removeItem(k));
     setFitbitToken(null);
     setFitbitAuthenticated(false);
     setAgentConsentGranted(false);
@@ -527,17 +485,15 @@ export default function ChatPage() {
     setMessages((m) => [
       ...m,
       {
-        text: "Consent granted. You can unlink Fitbit anytime using the badge beside Logout.",
+        text: "Consent granted. You can link or unlink Fitbit anytime using the badge beside Logout.",
         user: false,
       },
     ]);
   }
 
-  /* ------------------------- Recovery detection ------------------------ */
-
   function looksLikeRecoveryQuery(text: string) {
     const lower = text.toLowerCase();
-    const keywords = [
+    return [
       "recovery",
       "recover",
       "how is my recovery",
@@ -547,109 +503,22 @@ export default function ChatPage() {
       "sleep",
       "rest",
       "recovery score",
-    ];
-    return keywords.some((k) => lower.includes(k));
+    ].some((k) => lower.includes(k));
   }
-
-  /* ---------------------------- Backend call --------------------------- */
-
-  async function sendToBackend(
-    messageToSend: string,
-    fitbit_token: string | null,
-    extra?: Record<string, any>
-  ) {
-    setLoading(true);
-    // show thinking bubble
-    setMessages((m) => [...m, { text: "thinking", user: false }]);
-
-    try {
-      const jwt = localStorage.getItem("descope_jwt");
-      if (!jwt) throw new Error("No session");
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/agent_query`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: JSON.stringify({
-            context: messageToSend,
-            consent_granted: agentConsentGranted,
-            fitbit_token: fitbit_token,
-            manual_data: extra ?? null,
-          }),
-        }
-      );
-
-      const data = await response.json();
-      // remove thinking
-      setMessages((m) => m.filter((msg) => msg.text !== "thinking"));
-
-      const botReply =
-        data.message?.trim() || "Sorry, I couldn't understand that.";
-      setMessages((m) => [...m, { text: botReply }]);
-    } catch (err) {
-      console.error("Error sending message:", err);
-      setMessages((m) => [
-        ...m.filter((msg) => msg.text !== "thinking"),
-        { text: "Error contacting server.", user: false },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
-  const clearChat = async () => {
-    const userToken = localStorage.getItem("descope_jwt"); // Or from state/context
-    if (!userToken) {
-      console.error("User token not found");
-      return;
-    }
-
-    try {
-      const userId = localStorage.getItem("descope_jwt"); // Use correct key
-      if (!userId) throw new Error("User not logged in");
-
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/clear_chat`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ user_id: userId }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (data.status === "ok") {
-        setMessages([]); // Clear chat messages in frontend
-        console.log("Chat cleared successfully");
-      } else {
-        console.error("Failed to clear chat:", data.message);
-      }
-    } catch (err) {
-      console.error("Failed to clear chat", err);
-    }
-  };
-
-  /* ------------------------------ handleSend --------------------------- */
-  // Single entry point for sends (preset prompts, composer, manual recovery, fitbit recovery)
 
   async function handleSend(
     msgOverride?: string,
-    manualData?: { sleepHours?: number; proteinIntake?: number }
+    manualData?: ManualData,
+    skipRecoveryCheck = false
   ) {
     const messageToSend = (msgOverride ?? input).trim();
     if (!messageToSend) return;
 
-    // show user bubble (immediate)
+    // Append user message immediately
     setMessages((m) => [...m, { text: messageToSend, user: true }]);
     if (!msgOverride) setInput("");
 
-    // If manualData provided (coming from a manual recovery flow), show the manual data in chat first
+    // Show manual data if provided
     if (manualData) {
       setMessages((m) => [
         ...m,
@@ -662,14 +531,69 @@ export default function ChatPage() {
       ]);
     }
 
-    // If it looks like a recovery query and we don't already have manualData, open recovery modal
-    if (looksLikeRecoveryQuery(messageToSend) && !manualData) {
+    // ---------------- Recovery modal logic ----------------
+    // Only trigger if:
+    // - looks like a recovery query
+    // - no manual data
+    // - not already skipping modal check
+    // - no pending message to avoid double modal
+    if (
+      looksLikeRecoveryQuery(messageToSend) &&
+      !manualData &&
+      !skipRecoveryCheck &&
+      !pendingRecoveryMessage
+    ) {
       setPendingRecoveryMessage(messageToSend);
       setRecoveryModalVisible(true);
-      return;
+      return; // exit early, no query sent yet
     }
 
-    // send to backend with appropriate fitbit token / manual data
+    // Clear pendingRecoveryMessage if this query was pending
+    if (pendingRecoveryMessage === messageToSend) {
+      setPendingRecoveryMessage(null);
+    }
+
+    // ---------------- Fitbit payload logic ----------------
+    // Only fetch Fitbit data if authenticated AND skipping modal check
+    let fitbitPayload: any = null;
+    if (fitbitAuthenticated && fitbitToken && skipRecoveryCheck) {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/fitbit/data`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("descope_jwt")}`,
+            },
+          }
+        );
+        const data = await res.json();
+
+        if (!data || Object.keys(data).length === 0) {
+          setMessages((m) => [
+            ...m,
+            {
+              text: "No Fitbit data found. Please enter manually or link your Fitbit account.",
+              user: false,
+            },
+          ]);
+          return;
+        }
+
+        fitbitPayload = data;
+        console.log("Fitbit data fetched:", fitbitPayload);
+      } catch (err) {
+        setMessages((m) => [
+          ...m,
+          {
+            text: "Error fetching your Fitbit data. Please try again later or enter manually.",
+            user: false,
+          },
+        ]);
+        return;
+      }
+    }
+
+    // ---------------- Send query to agent ----------------
     try {
       setLoading(true);
       setMessages((m) => [...m, { text: "thinking", user: false }]);
@@ -677,7 +601,6 @@ export default function ChatPage() {
       const jwt = localStorage.getItem("descope_jwt");
       if (!jwt) throw new Error("No session");
 
-      // If manualData exists, pass it as part of manual_data; otherwise pass null.
       const manual_payload = manualData
         ? {
             sleep_hours: manualData.sleepHours ?? null,
@@ -696,7 +619,8 @@ export default function ChatPage() {
           body: JSON.stringify({
             context: messageToSend,
             consent_granted: agentConsentGranted,
-            fitbit_token: fitbitAuthenticated ? fitbitToken : null,
+            fitbit_token: fitbitPayload ? fitbitToken : null,
+            fitbit_data: fitbitPayload ?? null,
             manual_data: manual_payload,
           }),
         }
@@ -705,11 +629,31 @@ export default function ChatPage() {
       const data = await response.json();
       setMessages((m) => m.filter((msg) => msg.text !== "thinking"));
 
-      const botReply =
-        data.message?.trim() || "Sorry, I couldn't understand that.";
-      setMessages((m) => [...m, { text: botReply }]);
+      // Handle consent required separately
+      if (data.consent_required) {
+        setMessages((m) => [
+          ...m,
+          {
+            text: data.message || "Consent is required to proceed.",
+            user: false,
+          },
+        ]);
+        return;
+      }
+
+      // Append agent response
+      if (data.message) {
+        setMessages((m) => [...m, { text: data.message.trim(), user: false }]);
+      } else {
+        setMessages((m) => [
+          ...m,
+          {
+            text: "Couldn't understand query or no response from agents.",
+            user: false,
+          },
+        ]);
+      }
     } catch (err) {
-      console.error("Error sending message:", err);
       setMessages((m) => [
         ...m.filter((msg) => msg.text !== "thinking"),
         { text: "Error contacting server.", user: false },
@@ -719,8 +663,6 @@ export default function ChatPage() {
     }
   }
 
-  /* ------------------------ Recovery modal handlers -------------------- */
-
   function onRecoveryUseFitbit() {
     setRecoveryModalVisible(false);
     const pending = pendingRecoveryMessage;
@@ -728,21 +670,51 @@ export default function ChatPage() {
     if (!pending) return;
 
     if (fitbitAuthenticated && fitbitToken) {
-      // proceed using fitbit token
-      sendToBackend(pending, fitbitToken, undefined);
+      // Fetch Fitbit data first and send query once
+      (async () => {
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/fitbit/data`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("descope_jwt")}`,
+              },
+            }
+          );
+          const data = await res.json();
+
+          if (!data || Object.keys(data).length === 0) {
+            setMessages((m) => [
+              ...m,
+              {
+                text: "No Fitbit data found. Please enter manually or check your Fitbit connection.",
+                user: false,
+              },
+            ]);
+            return;
+          }
+
+          console.log("Fitbit data fetched:", data);
+          // Send query with skipRecoveryCheck = true to prevent modal from reopening
+          handleSend(pending, undefined, true);
+        } catch (err) {
+          setMessages((m) => [
+            ...m,
+            {
+              text: "Error fetching your Fitbit data. Please try again later or enter manually.",
+              user: false,
+            },
+          ]);
+        }
+      })();
     } else {
-      // don't auto-start OAuth — instruct the user to click badge
       setMessages((m) => [
         ...m,
         {
-          text: "If you want Fitbit-based suggestions, please link your Fitbit account by clicking the Fitbit badge beside the Logout button. You can also choose manual entry.",
+          text: "Fitbit not linked. Please link your Fitbit account using the badge beside Logout, or use manual entry.",
           user: false,
         },
       ]);
-
-      // remove any thinking bubble
-      setMessages((m) => m.filter((msg) => msg.text !== "thinking"));
-      setLoading(false);
     }
   }
 
@@ -752,39 +724,19 @@ export default function ChatPage() {
     setPendingRecoveryMessage(null);
     if (!pending) return;
 
-    // show manual inputs as a user message & send to backend
-    const sleepVal = sleepHours || null;
-    const proteinVal = proteinGrams || null;
-
-    setMessages((m) => [
-      ...m,
+    // Send query with manual data and skipRecoveryCheck = true
+    handleSend(
+      pending,
       {
-        text: `Manual data submitted:\n- Sleep: ${
-          sleepVal ?? "?"
-        } hours\n- Protein: ${proteinVal ?? "?"} g`,
-        user: true,
+        sleepHours: sleepHours ? Number(sleepHours) : undefined,
+        proteinIntake: proteinGrams ? Number(proteinGrams) : undefined,
       },
-    ]);
-
-    // Compose manualData in the same shape handleSend expects and call handleSend with override to avoid double UI ask
-    const manualData = {
-      sleepHours: sleepVal ? Number(sleepVal) : undefined,
-      proteinIntake: proteinVal ? Number(proteinVal) : undefined,
-    };
-
-    // Use handleSend to preserve single send flow (it will send manual_data in payload)
-    handleSend(pending, manualData);
+      true
+    );
   }
-
-  /* ------------------------ Fitbit badge handlers ----------------------- */
-
   function onFitbitBadgeClick() {
-    if (fitbitAuthenticated) {
-      setUnlinkModalVisible(true);
-    } else {
-      // start OAuth flow
-      startFitbitOAuth();
-    }
+    if (fitbitAuthenticated) setUnlinkModalVisible(true);
+    else startFitbitOAuth();
   }
 
   function confirmUnlinkFitbit() {
@@ -803,11 +755,9 @@ export default function ChatPage() {
     ]);
   }
 
-  /* -------------------------------- Render ------------------------------- */
   return (
     <div className="relative flex w-full max-w-7xl mx-auto h-[calc(100vh-122px)] mt-2 bg-white rounded-xl shadow-xl overflow-hidden">
       <section className="flex-1 flex flex-col h-full relative">
-        {/* Header */}
         <div className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-gray-50">
           <span className="text-gray-700 font-medium text-lg">
             Fitness Agent
@@ -837,70 +787,31 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-8 pt-6 pb-4 flex flex-col gap-4">
           {messages.map((msg, i) =>
             msg.text === "thinking" ? (
               <AgentThinkingBubble key={i} avatar={agentAvatar} />
             ) : (
-              <div
+              <ChatBubble
                 key={i}
-                className={`flex mb-3 items-end ${
-                  msg.user ? "justify-end" : "justify-start"
-                }`}
-              >
-                {!msg.user && agentAvatar && (
-                  <div className="mr-2">{agentAvatar}</div>
-                )}
-                <div
-                  className={`max-w-[70%] px-6 py-4 rounded-3xl shadow-md text-base ${
-                    msg.user
-                      ? "bg-gradient-to-br from-blue-600 to-blue-800 text-white"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                  style={{ whiteSpace: "pre-wrap" }}
-                >
-                  {msg.text}
-                </div>
-              </div>
+                message={msg.text}
+                isUser={!!msg.user}
+                avatar={agentAvatar}
+              />
             )
           )}
           <div ref={scrollRef} />
         </div>
 
-        {/* Quick prompts */}
         <div className="px-8 pb-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-gray-600 text-sm font-semibold">
               Quick Questions:
             </span>
             <button
-              onClick={async () => {
-                const userToken = localStorage.getItem("descope_jwt"); // Or from state/context
-                if (!userToken) {
-                  console.error("User token not found");
-                  return;
-                }
-                try {
-                  const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL}/clear_chat`,
-                    {
-                      method: "POST",
-                      headers: {
-                        Authorization: `Bearer ${userToken}`,
-                        "Content-Type": "application/json",
-                      },
-                    }
-                  );
-                  const data = await res.json();
-                  if (data.status === "ok") {
-                    setMessages([]); // Clear chat messages in frontend
-                    setInput(""); // Reset input field
-                    console.log("Chat cleared successfully");
-                  }
-                } catch (err) {
-                  console.error("Failed to clear chat", err);
-                }
+              onClick={() => {
+                localStorage.getItem("descope_jwt") && setMessages([]);
+                setInput("");
               }}
               className="text-blue-600 underline cursor-pointer"
             >
@@ -909,7 +820,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="flex overflow-x-auto gap-3">
+        <div className="flex overflow-x-auto gap-3 px-8 pb-4">
           {presetMessages.map((msg, i) => (
             <button
               key={i}
@@ -921,7 +832,6 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* Composer */}
         <div className="sticky bottom-0 z-10 flex gap-4 border-t border-gray-300 bg-gray-50 px-8 py-5">
           <input
             type="text"
@@ -942,10 +852,7 @@ export default function ChatPage() {
         </div>
       </section>
 
-      {/* Consent Modal (only appears until accepted) */}
       {showConsent && <ConsentModal onAccept={acceptConsent} />}
-
-      {/* Recovery Modal */}
       <RecoveryModal
         visible={recoveryModalVisible}
         onClose={() => {
@@ -956,8 +863,6 @@ export default function ChatPage() {
         onManual={onRecoveryManual}
         isFitbitLinked={fitbitAuthenticated}
       />
-
-      {/* Unlink Confirm */}
       <UnlinkConfirmModal
         visible={unlinkModalVisible}
         onCancel={() => setUnlinkModalVisible(false)}

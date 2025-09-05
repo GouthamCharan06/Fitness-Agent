@@ -18,7 +18,7 @@ from backend.auth import verify_descope_token
 
 # Load environment variables
 load_dotenv()
-user_states= {}
+user_states = {}
 
 # Initialize FastAPI
 app = FastAPI(title="Fitness Backend")
@@ -146,7 +146,6 @@ async def agent_query(request: Request):
     except Exception:
         raw = await request.body()
         try:
-            # Try decode fallback
             body_text = raw.decode("utf-8")
             body_data = {"context": body_text}
         except Exception:
@@ -156,26 +155,22 @@ async def agent_query(request: Request):
     try:
         query = AgentQuery(**body_data)
     except Exception:
-        # If body doesn't fit model, use context-only fallback
         context_val = body_data.get("context") or ""
         query = AgentQuery(context=context_val)
 
     logging.info("[Query] User query: %s", query.context)
 
-    # Initialize state cleanly (avoid referencing state before defined)
     state = {"user_query": query.context, "chat_history": []}
 
-    # Attach any fitbit token from request body
     fitbit_token = body_data.get("fitbit_token") or None
     if fitbit_token:
         state["fitbit_token"] = fitbit_token
+        state["fitbit_linked"] = True
         logging.info("[Orchestrator] Fitbit token detected and added to state")
 
-    # Map manual_data from frontend (if present) into state as expected by recovery_agent
+    # Map manual_data from frontend (if present) into state
     manual_data = body_data.get("manual_data") or {}
-    # Accept both shapes: {sleep_hours:.. protein_grams:..} or {manual_sleep_hours:.. manual_protein_grams:..}
     if manual_data:
-        # Normalize keys into manual_sleep_hours and manual_protein_grams
         sleep_val = manual_data.get("manual_sleep_hours") or manual_data.get("sleep_hours") or manual_data.get("sleep")
         protein_val = manual_data.get("manual_protein_grams") or manual_data.get("protein_grams") or manual_data.get("protein")
         if sleep_val is not None:
@@ -187,7 +182,6 @@ async def agent_query(request: Request):
 
     # Append current user query to history
     state.setdefault("chat_history", []).append({"role": "user", "content": query.context})
-    # Keep only last 15 messages
     state["chat_history"] = state["chat_history"][-15:]
     history_text = "\n".join([f"{m['role']}: {sanitize_text(m['content'])}" for m in state["chat_history"]])
 
@@ -204,7 +198,7 @@ async def agent_query(request: Request):
             last_agent_context = "\nPrevious relevant responses:\n" + "\n".join(last_responses)
 
     try:
-        # Classify intent using history-aware prompt
+        # Classify intent
         logging.info("[Intent] Classifying intent with conversation history")
         intent_input = f"Conversation so far:\n{history_text}\n\nCurrent user input:\n{sanitize_text(query.context)}"
         if last_agent_context:
@@ -220,13 +214,11 @@ async def agent_query(request: Request):
         consent_needed_agents = []
         if not query.consent_granted and any(a in flow for a in ["trainer", "nutrition", "recovery"]):
             consent_needed_agents = flow
-            # Fitbit consent specifically for recovery agent
             fitbit_needed = "recovery" in flow and not state.get("fitbit_token")
             consent_message = f"Agent: {', '.join(consent_needed_agents)} need your consent to read your query/data. This is necessary to invoke the respective agents and give an accurate response. Don't worry, your information is protected. Do you want to Proceed?"
             if fitbit_needed:
                 consent_message += " Fitbit authentication is required for recovery data."
             logging.info("[Consent] Consent required for agents: %s", consent_needed_agents)
-            # Always return consistent shape
             return {
                 "user_id": query.user_id,
                 "intent": "consent",
@@ -278,31 +270,44 @@ Conversation history:
 {history_text}
 User said: {sanitize_text(query.context)}.
 Respond casually but only about workouts, nutrition, or recovery. 
-If unrelated, give a polite fallback.
+If unrelated, give a polite fallback Greet user if they greet you (Hi, bye, take care, etc. ).
 No emoji's, special symbols, or asterisks in your response.
 """
             casual_prompt_text = casual_prompt_text.replace("{", "{{").replace("}", "}}")
             casual_chain = ChatPromptTemplate.from_template(casual_prompt_text) | orchestrator_llm
             message = (await casual_chain.ainvoke({})).content
             message = sanitize_text(message)
-            # Append assistant message to history
             state.setdefault("chat_history", []).append({"role": "assistant", "content": message})
             logging.info("[Casual] Response generated")
             return {"user_id": query.user_id, "message": message, "intent": intent, **state}
 
-        # Combine responses from agents, deduplicate, preserve all lines
+        # Combine responses from agents with Recovery nutrition filter
         response_parts = []
         seen_texts = set()
         for key in ["trainer_response", "nutrition_response", "recovery_response"]:
             if key in state and state.get(key):
                 sanitized_response = sanitize_text(state[key])
-                # Deduplicate ignoring case
+
+                # Skip nutrition advice in recovery_response if nutrition_response exists
+                if key == "recovery_response" and state.get("nutrition_response"):
+                    lines = sanitized_response.splitlines()
+                    filtered_lines = []
+                    skip_nutrition = False
+                    for line in lines:
+                        if "Nutrition" in line:
+                            skip_nutrition = True
+                            continue
+                        if skip_nutrition and any(section in line for section in ["Sleep", "Activity", "Hydration", "Stretching", "Heat/Ice Therapy", "Listen to Your Body"]):
+                            skip_nutrition = False
+                        if not skip_nutrition:
+                            filtered_lines.append(line)
+                    sanitized_response = "\n".join(filtered_lines).strip()
+
                 if sanitized_response.lower() in seen_texts:
                     continue
                 seen_texts.add(sanitized_response.lower())
                 header = key.replace("_", " ").upper() + ":"
                 response_parts.append(f"{header}\n{sanitized_response}")
-                # Append assistant message to history
                 state.setdefault("chat_history", []).append({"role": "assistant", "content": sanitized_response})
 
         message = "\n\n".join(response_parts) if response_parts else "Couldn't understand query."
@@ -312,22 +317,19 @@ No emoji's, special symbols, or asterisks in your response.
 
     except Exception as e:
         logging.exception("[Orchestrator] Unexpected error in /agent_query")
-        # Return consistent error shape
         return JSONResponse(status_code=500, content={"user_id": query.user_id if 'query' in locals() else "anonymous", "message": str(e), "intent": "error"})
-
 
 # Fitbit OAuth callback endpoint
 class FitbitCallbackRequest(BaseModel):
     fitbit_code: str
     code_verifier: str
-    user_jwt: str = None  # Optional: Descope JWT for verifying user
+    user_jwt: str = None
 
 
 @app.post("/api/auth/verify/fitbit/callback")
 async def fitbit_callback(req: FitbitCallbackRequest):
     logging.info("[Fitbit] Callback received with code")
     try:
-        # Optional: Verify Descope JWT if provided
         if req.user_jwt:
             try:
                 await verify_descope_token(req.user_jwt, RECOVERY_COLLECT)
@@ -336,13 +338,11 @@ async def fitbit_callback(req: FitbitCallbackRequest):
                 logging.warning("[Fitbit] Invalid user JWT: %s", e)
                 raise HTTPException(status_code=401, detail="Invalid JWT")
 
-        # Ensure code_verifier is provided for PKCE
         code_verifier = getattr(req, "code_verifier", None)
         if not code_verifier:
             logging.error("[Fitbit] Missing code_verifier for PKCE")
             raise HTTPException(status_code=400, detail="Missing code_verifier for PKCE")
 
-        # Exchange Fitbit code for access & refresh token using PKCE
         token_url = "https://api.fitbit.com/oauth2/token"
         client_id = os.environ.get("FITBIT_CLIENT_ID")
         client_secret = os.environ.get("FITBIT_CLIENT_SECRET")
@@ -362,27 +362,25 @@ async def fitbit_callback(req: FitbitCallbackRequest):
                 raise HTTPException(status_code=500, detail="Fitbit token exchange failed")
             tokens = response.json()
 
-        # Store tokens securely (DB, cache, or user session)
         logging.info("[Fitbit] Tokens received successfully: %s", tokens)
         return {"status": "ok", "tokens": tokens}
     except Exception as e:
         logging.exception("[Fitbit] Error handling callback")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/clear_chat")
 async def clear_chat(request: Request):
     try:
-    
         try:
             data = await request.json()
         except Exception:
             data = {}
-        
-        
+
         user_id = data.get("user_id") or "anonymous"
 
         global user_states
-        
+
         if user_id not in user_states:
             user_states[user_id] = {"chat_history": []}
         else:
