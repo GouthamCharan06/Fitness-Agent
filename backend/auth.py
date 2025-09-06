@@ -1,7 +1,7 @@
 # backend/utils/auth.py
 import logging
 from fastapi import HTTPException
-from backend.utils.descope_utils import verify_scope
+from utils.descope_utils import verify_scope
 
 logging.basicConfig(level=logging.INFO)
 

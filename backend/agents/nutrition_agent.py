@@ -4,8 +4,8 @@ import logging
 from dotenv import load_dotenv
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from backend.scopes import NUTRITION_DIETPLAN
-from backend.auth import verify_descope_token
+from scopes import NUTRITION_DIETPLAN
+from auth import verify_descope_token
 import re  # For sanitization
 
 load_dotenv()

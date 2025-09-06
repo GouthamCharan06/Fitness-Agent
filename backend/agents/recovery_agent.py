@@ -4,8 +4,8 @@ import logging
 from dotenv import load_dotenv
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
-from backend.scopes import RECOVERY_COLLECT, RECOVERY_INVOKE_TRAINER, RECOVERY_INVOKE_NUTRITION
-from backend.auth import verify_descope_token
+from scopes import RECOVERY_COLLECT, RECOVERY_INVOKE_TRAINER, RECOVERY_INVOKE_NUTRITION
+from auth import verify_descope_token
 import re
 import httpx
 import datetime

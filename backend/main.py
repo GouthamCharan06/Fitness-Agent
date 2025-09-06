@@ -10,11 +10,11 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import re
 import httpx
-from backend.agents.trainer_agent import trainer_node
-from backend.agents.nutrition_agent import nutrition_node
-from backend.agents.recovery_agent import recovery_node
-from backend.scopes import TRAINER_SUGGEST, NUTRITION_DIETPLAN, RECOVERY_COLLECT
-from backend.auth import verify_descope_token
+from agents.trainer_agent import trainer_node
+from agents.nutrition_agent import nutrition_node
+from agents.recovery_agent import recovery_node
+from scopes import TRAINER_SUGGEST, NUTRITION_DIETPLAN, RECOVERY_COLLECT
+from auth import verify_descope_token
 
 # Load environment variables
 load_dotenv()
