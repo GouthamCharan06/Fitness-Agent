@@ -24,7 +24,8 @@ user_states = {}
 app = FastAPI(title="Fitness Backend")
 
 # CORS configuration
-origins = ["http://localhost:3000"]
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+origins = [FRONTEND_URL]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
