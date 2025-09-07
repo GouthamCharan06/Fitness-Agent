@@ -25,9 +25,8 @@ Three specialized agents:
 4. Fitbit API integration (sleep + activity data). Since no physical device was available, data was manually logged into Fitbit to demonstrate agent–API interaction.
 
 How to Run?
-Clone the Repository
-git clone <repo-link>
-cd frontend/fitness-agent-frontend
+1. Clone the Repository : git clone <repo-link>
+2. cd frontend/fitness-agent-frontend
 
 Set up Environment Variables: Copy .env.example to .env
 
@@ -78,4 +77,5 @@ Future Enhancements:
 2. Extend Fitbit integration with detailed sleep logs, heart rate trends, and more.
 3. Enable chat history–based responses for better continuity.
 4. Build custom agent clients for external integrations.
+
 
