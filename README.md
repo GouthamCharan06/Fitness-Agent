@@ -10,8 +10,7 @@ Team Details:
 2. Member: Arasada Goutham Charan
 
 Hackathon Theme:
-Theme 3 (Advanced): Design How Agents Talk, Trust, and Team Up
-Built to demonstrate secure, scoped, multi-agent collaboration with Descope Inbound Apps
+1. Theme 3 (Advanced): Design How Agents Talk, Trust, and Team Up, Built to demonstrate secure, scoped, multi-agent collaboration with Descope Inbound Apps
 
 What I Built:
 1. A Next.js frontend for user login, consent capture, and chat-based interaction.
@@ -77,5 +76,6 @@ Future Enhancements:
 2. Extend Fitbit integration with detailed sleep logs, heart rate trends, and more.
 3. Enable chat history–based responses for better continuity.
 4. Build custom agent clients for external integrations.
+
 
 
