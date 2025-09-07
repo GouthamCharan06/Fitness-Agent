@@ -51,9 +51,9 @@ After executing npm run dev,
 1. Open http://localhost:3000
 2. Log in via Descope and provide consent (one-time).
 3. Start querying agents:
-“Give me a workout and diet plan” : Invokes Trainer + Nutrition
-“Fetch my recovery from Fitbit” : Invokes Recovery agent
-“Suggest recovery tips” : Invokes Trainer + Nutrition + Recovery Agents
+“Give me a workout and diet plan” : Invokes Trainer + Nutrition,
+“How is my Recovery today?” : Invokes Recovery agent (Choose between Fitbit and Manual entry for response),
+“Suggest recovery tips” : Invokes Trainer + Nutrition + Recovery Agents.
 
 Tech Stack:
 1. Frontend: Next.js, TailwindCSS
@@ -76,6 +76,7 @@ Future Enhancements:
 2. Extend Fitbit integration with detailed sleep logs, heart rate trends, and more.
 3. Enable chat history–based responses for better continuity.
 4. Build custom agent clients for external integrations.
+
 
 
 
