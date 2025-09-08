@@ -15,11 +15,12 @@ Hackathon Theme:
 What I Built:
 1. A Next.js frontend for user login, consent capture, and chat-based interaction.
 2. A FastAPI orchestrator that routes user queries to specialized agents.
-Three specialized agents:
+Four specialized agents:
 1. Trainer Agent : Gives workout recommendations, training plans and responds to training related queries
 2. Nutrition Agent : Gives Dietary recommendations, dietplans and responds to nutrition related queries
 3. Recovery Agent : Gives recovery advice + integration with Fitbit API for real-time suggestions
-   
+4. Orchestrator Agent : validates JWT + scopes, classifies intent, and coordinates communication between agents.
+
 3. Descope JWT + scopes ensure secure agent communication (agents only act within delegated permissions). If no JWT, it returns an Unauthorized message to the user
 4. Fitbit API integration (sleep + activity data). Since no physical device was available, data was manually logged into Fitbit to demonstrate agent–API interaction.
 
@@ -85,6 +86,7 @@ Future Enhancements:
 2. Extend Fitbit integration with detailed sleep logs, heart rate trends, and more.
 3. Enable chat history–based responses for better continuity.
 4. Build custom agent clients for external integrations.
+
 
 
 
