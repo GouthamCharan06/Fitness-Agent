@@ -79,13 +79,14 @@ Deployment:
 Deployed URL : https://fitness-agent-ecru.vercel.app/
 
 Demo Video:
-1. YouTube Link: https://www.youtube.com/watch?v=ECXrBODhv-s
+1. YouTube Link: https://www.youtube.com/watch?v=wPru8Sdj0UU
 
 Future Enhancements:
 1. Upload medical reports to generate personalized training + nutrition plans.
 2. Extend Fitbit integration with detailed sleep logs, heart rate trends, and more.
 3. Enable chat history–based responses for better continuity.
 4. Build custom agent clients for external integrations.
+
 
 
 
