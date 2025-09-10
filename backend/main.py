@@ -10,6 +10,7 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import re
 import httpx
+import asyncio, copy
 from agents.trainer_agent import trainer_node
 from agents.nutrition_agent import nutrition_node
 from agents.recovery_agent import recovery_node
@@ -133,14 +134,12 @@ def sanitize_text(text: str) -> str:
 async def agent_query(request: Request):
     logging.info("[Orchestrator] /agent_query called")
 
-    # Extract token from Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         logging.warning("[Auth] Missing Authorization header")
         raise HTTPException(status_code=401, detail="Missing token")
     token = auth_header.split(" ", 1)[1]
 
-    # Parse request body once (robust to raw text bodies)
     body_data = {}
     try:
         body_data = await request.json()
@@ -152,7 +151,6 @@ async def agent_query(request: Request):
         except Exception:
             body_data = {}
 
-    # Build AgentQuery safely
     try:
         query = AgentQuery(**body_data)
     except Exception:
@@ -169,7 +167,6 @@ async def agent_query(request: Request):
         state["fitbit_linked"] = True
         logging.info("[Orchestrator] Fitbit token detected and added to state")
 
-    # Map manual_data from frontend (if present) into state
     manual_data = body_data.get("manual_data") or {}
     if manual_data:
         sleep_val = manual_data.get("manual_sleep_hours") or manual_data.get("sleep_hours") or manual_data.get("sleep")
@@ -181,16 +178,13 @@ async def agent_query(request: Request):
             state["manual_protein_grams"] = protein_val
             logging.info("[Orchestrator] Manual protein provided: %s", protein_val)
 
-    # Append current user query to history
     state.setdefault("chat_history", []).append({"role": "user", "content": query.context})
     state["chat_history"] = state["chat_history"][-15:]
     history_text = "\n".join([f"{m['role']}: {sanitize_text(m['content'])}" for m in state["chat_history"]])
 
-    # Detect follow-up
     followup_keywords = ["this", "that", "it", "more", "why", "again", "details", "how", "explain", "clarify"]
     is_followup = any(word in query.context.lower() for word in followup_keywords)
 
-    # Grab last agent responses for context if it's follow-up
     last_agent_context = ""
     if is_followup:
         relevant_keys = ["trainer_response", "nutrition_response", "recovery_response"]
@@ -199,7 +193,6 @@ async def agent_query(request: Request):
             last_agent_context = "\nPrevious relevant responses:\n" + "\n".join(last_responses)
 
     try:
-        # Classify intent
         logging.info("[Intent] Classifying intent with conversation history")
         intent_input = f"Conversation so far:\n{history_text}\n\nCurrent user input:\n{sanitize_text(query.context)}"
         if last_agent_context:
@@ -211,7 +204,6 @@ async def agent_query(request: Request):
         flow = INTENT_TO_FLOW.get(intent, ["trainer"])
         logging.info("[Orchestrator] Flow determined: %s", flow)
 
-        # Inter-agent consent check
         consent_needed_agents = []
         if not query.consent_granted and any(a in flow for a in ["trainer", "nutrition", "recovery"]):
             consent_needed_agents = flow
@@ -228,42 +220,43 @@ async def agent_query(request: Request):
                 "agents": consent_needed_agents,
             }
 
-        # Trainer agent
+        
+        tasks = []
         if "trainer" in flow:
             try:
                 await verify_descope_token(token, TRAINER_SUGGEST)
                 logging.info("[Orchestrator] Invoking TrainerAgent")
-                state = await trainer_node(state, {"token": token, "caller": "orchestrator"})
-                logging.info("[TrainerAgent] Response: %s", state.get("trainer_response"))
+                tasks.append(trainer_node(copy.deepcopy(state), {"token": token, "caller": "orchestrator"}))
             except HTTPException:
                 state["trainer_response"] = "Unauthorized: Missing trainer scope"
                 logging.warning("[TrainerAgent] Unauthorized access attempt")
-
-        # Nutrition agent
         if "nutrition" in flow:
             try:
                 await verify_descope_token(token, NUTRITION_DIETPLAN)
                 logging.info("[Orchestrator] Invoking NutritionAgent")
-                state = await nutrition_node(state, {"token": token, "caller": "orchestrator"})
-                logging.info("[NutritionAgent] Response: %s", state.get("nutrition_response"))
+                tasks.append(nutrition_node(copy.deepcopy(state), {"token": token, "caller": "orchestrator"}))
             except HTTPException:
                 state["nutrition_response"] = "Unauthorized: Missing nutrition scope"
                 logging.warning("[NutritionAgent] Unauthorized access attempt")
-
-        # Recovery agent
         if "recovery" in flow:
             try:
                 await verify_descope_token(token, RECOVERY_COLLECT)
                 logging.info("[Orchestrator] Invoking RecoveryAgent")
-                state = await recovery_node(
-                    state, {"token": token, "caller": "orchestrator"}, trainer_node=trainer_node, nutrition_node=nutrition_node
-                )
-                logging.info("[RecoveryAgent] Response: %s", state.get("recovery_response"))
+                tasks.append(recovery_node(copy.deepcopy(state), {"token": token, "caller": "orchestrator"},
+                                           trainer_node=trainer_node, nutrition_node=nutrition_node))
             except HTTPException:
                 state["recovery_response"] = "Unauthorized: Missing recovery scope"
                 logging.warning("[RecoveryAgent] Unauthorized access attempt")
 
-        # Casual intent handling
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for res in results:
+                if isinstance(res, Exception):
+                    logging.error("[Agent] Error during execution: %s", res)
+                    continue
+                if res:
+                    state.update(res)
+
         if intent == "casual":
             logging.info("[Orchestrator] Handling casual intent")
             casual_prompt_text = f"""
@@ -282,14 +275,11 @@ No emoji's, special symbols, or asterisks in your response.
             logging.info("[Casual] Response generated")
             return {"user_id": query.user_id, "message": message, "intent": intent, **state}
 
-        # Combine responses from agents with Recovery nutrition filter
         response_parts = []
         seen_texts = set()
         for key in ["trainer_response", "nutrition_response", "recovery_response"]:
             if key in state and state.get(key):
                 sanitized_response = sanitize_text(state[key])
-
-                # Skip nutrition advice in recovery_response if nutrition_response exists
                 if key == "recovery_response" and state.get("nutrition_response"):
                     lines = sanitized_response.splitlines()
                     filtered_lines = []
@@ -303,7 +293,6 @@ No emoji's, special symbols, or asterisks in your response.
                         if not skip_nutrition:
                             filtered_lines.append(line)
                     sanitized_response = "\n".join(filtered_lines).strip()
-
                 if sanitized_response.lower() in seen_texts:
                     continue
                 seen_texts.add(sanitized_response.lower())
