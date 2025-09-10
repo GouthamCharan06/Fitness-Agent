@@ -9,7 +9,7 @@ from auth import verify_descope_token
 import re  # For sanitization
 
 load_dotenv()
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY_TRAIN_NUTRI"]
 MUSCLEWIKI_URL = "https://musclewiki.com"
 
 
